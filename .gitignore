@@ -74,8 +74,6 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
-ArmChair_AlbedoTransparency.tga
-ArmChair_AO.tga
-ArmChair_Normal.tga
+*.tga
 Sofa1_D.png
 Sofa1_Pillow_D.png
