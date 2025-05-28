@@ -73,3 +73,9 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+ArmChair_AlbedoTransparency.tga
+ArmChair_AO.tga
+ArmChair_Normal.tga
+Sofa1_D.png
+Sofa1_Pillow_D.png
