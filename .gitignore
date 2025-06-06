@@ -77,3 +77,6 @@ crashlytics-build.properties
 *.tga
 Sofa1_D.png
 Sofa1_Pillow_D.png
+
+/Assets/Fonts/PretendardVariable SDF.asset
+/Assets/Fonts/Cafe24Ssurround-v2.asset
