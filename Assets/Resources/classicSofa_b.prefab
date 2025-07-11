@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 881290037343484647}
   - component: {fileID: -8607032085489431482}
   m_Layer: 6
-  m_Name: classicSofa_b
+  m_Name: classicsofa_b
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

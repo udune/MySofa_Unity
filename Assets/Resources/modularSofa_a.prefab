@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 531868434004160467}
   - component: {fileID: 3064551124145951494}
   m_Layer: 6
-  m_Name: modularSofa_a
+  m_Name: modularsofa_a
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

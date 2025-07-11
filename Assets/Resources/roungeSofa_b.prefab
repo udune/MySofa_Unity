@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 4444048182995406851}
   - component: {fileID: -2213937235307789517}
   m_Layer: 6
-  m_Name: roungeSofa_b
+  m_Name: roungesofa_b
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
