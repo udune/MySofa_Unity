@@ -494,7 +494,7 @@ public class CustomizerUI : MonoBehaviour
 
     private IEnumerator PostSaveData(object saveData)
     {
-        string url = "https://api.my-sofa.org/custom-session";
+        string url = "https://api.my-sofa.org/myitems";
         string data = JsonUtility.ToJson(saveData);
 
         // 요청
@@ -515,14 +515,18 @@ public class CustomizerUI : MonoBehaviour
         else
         {
             Debug.LogError($"저장 실패: {request.error}");
-            OpenToast("저장에 실패했습니다.", 3.0f);
+            OpenToast("저장에 실패했습니다. (5개 이상 저장할 수 없습니다.)", 3.0f);
         }
     }
 
     // 돌아가기 버튼
     public void GoBack()
     {
+#if !UNITY_EDITOR
+        Application.ExternalEval("window.location.href = 'https://my-sofa.org';");
+#else
         Application.OpenURL("https://my-sofa.org");
+#endif
     }
     
     private void OpenToast(string message, float time)
