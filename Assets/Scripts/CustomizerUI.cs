@@ -69,6 +69,19 @@ public class ProductData
     public string id;
 }
 
+[Serializable]
+public class SaveRequest
+{
+    public string user_id;
+    public string product_id;
+    public string name;
+    public string custom_name;
+    public string color;
+    public string material;
+    public string size;
+    public string model_type;
+}
+
 public class CustomizerUI : MonoBehaviour
 {
     // 프리팹 모델의 색상과 재질을 바꾸기 위한 셰이더 속성
@@ -127,22 +140,6 @@ public class CustomizerUI : MonoBehaviour
     private readonly Color beigeColor = new(0.96f, 0.86f, 0.71f);
     private readonly Color grayColor = new(0.5f, 0.5f, 0.5f);
     private readonly Color blackColor = new(0.2f, 0.2f, 0.2f);
-
-    public void InitData(BridgeCustomData bridgeCustomData)
-    {
-        modelGo = Instantiate(Resources.Load<GameObject>($"{bridgeCustomData.name}_{bridgeCustomData.modelType}"));
-        
-        selectedColor = bridgeCustomData.color;
-        selectedMaterial = bridgeCustomData.material;
-        selectedSize = bridgeCustomData.size;
-        selectedModelType = bridgeCustomData.modelType;
-        
-        productNameField.text = bridgeCustomData.customName;
-        SetColor(bridgeCustomData.color);
-        SetMaterial(bridgeCustomData.material);
-        SetSize(bridgeCustomData.size);
-        SwitchModel(bridgeCustomData.modelType);
-    }
     
     private void Start()
     {
@@ -462,13 +459,13 @@ public class CustomizerUI : MonoBehaviour
     {
         string selectedCustomName = productNameField.text;
         
-        if (string.IsNullOrEmpty(name))
+        if (string.IsNullOrEmpty(selectedCustomName))
         {
             OpenToast("제품명을 입력해주세요.", 3.0f);
             return;
         }
 
-        if (name.Length >= 10)
+        if (selectedCustomName.Length >= 10)
         {
             OpenToast("제품명은 10자 이하여야 합니다.", 3.0f);
             return;
@@ -477,7 +474,7 @@ public class CustomizerUI : MonoBehaviour
         // 현재 모델의 이름
         string selectedName = modelGo != null ? modelGo.name : "";
         
-        var saveData = new 
+        SaveRequest saveData = new SaveRequest
         {
             user_id = currentSessionData?.user?.id ?? "",
             product_id = currentSessionData?.product?.id ?? "",
@@ -488,21 +485,19 @@ public class CustomizerUI : MonoBehaviour
             size = selectedSize,
             model_type = selectedModelType
         };
+        
+        string jsonData = JsonUtility.ToJson(saveData);
 
-        StartCoroutine(PostSaveData(saveData));
+        StartCoroutine(PostSaveData(jsonData));
     }
 
-    private IEnumerator PostSaveData(object saveData)
+    private IEnumerator PostSaveData(string jsonData)
     {
         string url = "https://api.my-sofa.org/myitems";
         
-        // 데이터를 JSON 형태로 변환
-        string jsonData = JsonUtility.ToJson(saveData);
-        
-        Debug.Log($"요청 데이터: {jsonData}");
         Debug.Log($"요청 URL: {url}");
         
-        // POST 방식으로 서버에 데이터 보내기 준비 (올바른 방법)
+        // POST 방식으로 서버에 데이터 보내기 준비
         UnityWebRequest request = new UnityWebRequest(url, "POST");
         
         // JSON 데이터를 바이트 배열로 변환해서 업로드 핸들러에 설정
