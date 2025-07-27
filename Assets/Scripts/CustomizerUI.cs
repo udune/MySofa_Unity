@@ -495,28 +495,61 @@ public class CustomizerUI : MonoBehaviour
     private IEnumerator PostSaveData(object saveData)
     {
         string url = "https://api.my-sofa.org/myitems";
-        string data = JsonUtility.ToJson(saveData);
-
-        // 요청
-        UnityWebRequest request = new UnityWebRequest(url, "POST");
-        request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(data));
-        request.downloadHandler = new DownloadHandlerBuffer();
-        request.SetRequestHeader("Content-Type", "application/json");
         
-        // 서버 응답 기다림
+        // 데이터를 JSON 형태로 변환
+        string jsonData = JsonUtility.ToJson(saveData);
+        
+        Debug.Log($"요청 데이터: {jsonData}");
+        Debug.Log($"요청 URL: {url}");
+        
+        // POST 방식으로 서버에 데이터 보내기 준비 (올바른 방법)
+        UnityWebRequest request = new UnityWebRequest(url, "POST");
+        
+        // JSON 데이터를 바이트 배열로 변환해서 업로드 핸들러에 설정
+        byte[] jsonBytes = Encoding.UTF8.GetBytes(jsonData);
+        request.uploadHandler = new UploadHandlerRaw(jsonBytes);
+        request.downloadHandler = new DownloadHandlerBuffer();
+        
+        // 헤더 설정
+        request.SetRequestHeader("Content-Type", "application/json");
+        request.SetRequestHeader("Accept", "application/json");
+        
+        // 서버 응답을 기다리기
         yield return request.SendWebRequest();
         
-        // 성공 확인
+        // 결과 확인
+        Debug.Log($"응답 코드: {request.responseCode}");
+        Debug.Log($"응답 내용: {request.downloadHandler.text}");
+        
+        // 서버에 성공적으로 저장되었는지 확인
         if (request.result == UnityWebRequest.Result.Success)
         {
             Debug.Log("저장 완료");
+            // 성공 메시지 보여주기
             OpenToast("저장되었습니다.", 3.0f);
         }
         else
         {
-            Debug.LogError($"저장 실패: {request.error}");
-            OpenToast("저장에 실패했습니다. (5개 이상 저장할 수 없습니다.)", 3.0f);
+            Debug.LogError($"저장 실패 - 코드: {request.responseCode}, 에러: {request.error}");
+            
+            // 구체적인 에러 메시지 표시
+            if (request.responseCode == 400)
+            {
+                OpenToast("잘못된 데이터입니다. 모든 항목을 선택해주세요.", 3.0f);
+            }
+            else if (request.responseCode == 500)
+            {
+                OpenToast("서버 오류입니다. 잠시 후 다시 시도해주세요.", 3.0f);
+            }
+            else
+            {
+                // 기본 실패 메시지
+                OpenToast("저장에 실패했습니다.", 3.0f);
+            }
         }
+        
+        // 메모리 정리
+        request.Dispose();
     }
 
     // 돌아가기 버튼
