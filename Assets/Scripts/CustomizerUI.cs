@@ -7,19 +7,71 @@ using UnityEngine.Networking;
 using UnityEngine.UI;
 using Debug = UnityEngine.Debug;
 
+// 저장할 커스텀 데이터
 [Serializable]
 public class CustomData
 {
+    // 소파 종류
     public string name;
+    // 사용자가 입력한 제품명
     public string customName;
+    // 색상
     public string color;
+    // 소재
     public string material;
+    // 사이즈
     public string size;
+    // 타입
     public string model;
+}
+
+// 서버에서 받아온 세션 데이터
+[Serializable]
+public class SessionData
+{
+    // 세션 고유ID
+    public string id;
+    // 소파 이름
+    public string name;
+    // 사용자가 지은 제품 이름
+    public string custom_name;
+    // 색상
+    public string color;
+    // 소재
+    public string material;
+    // 사이즈
+    public string size;
+    // 타입
+    public string model_type;
+    // 생성 시간
+    public string created_at;
+    // 마지막 수정 시간
+    public string updated_at;
+    // 사용자 정보
+    public UserData user;
+    // 제품 정보
+    public ProductData product;
+}
+
+// 사용자 정보
+[Serializable]
+public class UserData
+{
+    // 사용자 ID
+    public string id;
+}
+
+// 상품 정보
+[Serializable]
+public class ProductData
+{
+    // 상품 ID
+    public string id;
 }
 
 public class CustomizerUI : MonoBehaviour
 {
+    // 프리팹 모델의 색상과 재질을 바꾸기 위한 셰이더 속성
     private static readonly int _Color = Shader.PropertyToID("_BaseColor");
     private static readonly int _Smoothness = Shader.PropertyToID("_Smoothness");
 
@@ -47,16 +99,31 @@ public class CustomizerUI : MonoBehaviour
     public GameObject toast;
     public TMP_Text toastText;
 
+    [Header("버튼")] 
+    public Button saveButton;
+    public Button backButton;
+
+    // 현재 선택된 색상
     private string selectedColor = "";
+    // 현재 선택된 소재
     private string selectedMaterial = "";
+    // 현재 선택된 사이즈
     private string selectedSize = "";
+    // 현재 선택된 모델 타입
     private string selectedModelType = "";
+    // URL 쿼리에서 추출한 세션 ID
+    private string sessionId = "";
 
-    private CustomData data = new CustomData();
-
+    // 서버에서 받아온 세션 데이터
+    private SessionData currentSessionData;
+    // 현재 화면에 나온 프리팹 모델
     private GameObject modelGo;
+    // 프리팹 모델의 컴포넌트 스크립트
     public SofaModel model;
     
+    private CustomData data = new CustomData();
+    
+    // 미리 정해둔 색상 RGB
     private readonly Color beigeColor = new(0.96f, 0.86f, 0.71f);
     private readonly Color grayColor = new(0.5f, 0.5f, 0.5f);
     private readonly Color blackColor = new(0.2f, 0.2f, 0.2f);
@@ -79,6 +146,52 @@ public class CustomizerUI : MonoBehaviour
     
     private void Start()
     {
+        // sessionId를 찾아서 가져온다.
+        GetSessionIdFromURL();
+
+        // 토글들의 인터랙션 함수들을 연결한다.
+        RegisterToggles();
+        
+        // 저장/돌아가기 버튼 클릭 시 실행될 함수들을 연결한다.
+        RegisterButtons();
+
+        // sessionId가 있으면 서버에서 데이터를 가져온다.
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            StartCoroutine(LoadSessionData());
+        }
+        else
+        {
+            OpenToast("세션 ID가 없습니다.", 3.0f);
+        }
+    }
+
+    private void GetSessionIdFromURL()
+    {
+        // URL 주소를 가져온다.
+        string url = Application.absoluteURL;
+        
+        // sessionId 쿼리가 있는지 확인한다.
+        if (url.Contains("sessionId="))
+        {
+            // ? 기준으로 나눈다.
+            string[] parts = url.Split('?');
+            if (parts.Length > 1)
+            {
+                // = 기준으로 나누어서 키와 값을 분리한다.
+                string[] values = parts[1].Split("=");
+                if (values[0] == "sessionId" && values.Length == 2)
+                {
+                    sessionId = values[1];
+                    Debug.Log($"sessionId: {sessionId}");
+                }
+            }
+        }
+    }
+
+    // 토글 실행 함수 연결
+    private void RegisterToggles()
+    {
         RegisterToggle(beigeToggle, () => SetColor("beige"));
         RegisterToggle(grayToggle, () => SetColor("gray"));
         RegisterToggle(blackToggle, () => SetColor("black"));
@@ -93,44 +206,101 @@ public class CustomizerUI : MonoBehaviour
         RegisterToggle(bToggle, () => SwitchModel("b"));
     }
 
-    private void Update()
+    // 저장 버튼과 돌아가기 버튼을 클릭했을 때 실행될 함수들을 연결하는 함수
+    private void RegisterButtons()
     {
-#if UNITY_EDITOR
-        for (int i = 0; i <= 7; i++)
+        // 저장 버튼 있을 경우에 SaveData 함수 연결
+        if (saveButton != null)
         {
-            if (Input.GetKeyDown(KeyCode.Alpha0 + i))
-            {
-                LoadTest(i);
-            }
+            saveButton.onClick.AddListener(SaveData);
         }
-#endif
+
+        // 돌아가기 버튼 있을 경우에 GoBack 함수 연결
+        if (backButton != null)
+        {
+            backButton.onClick.AddListener(GoBack);
+        }
     }
 
-    private void LoadTest(int idx)
+    private IEnumerator LoadSessionData()
     {
-        string[] modelNames =
+        string url = $"https://api.my-sofa.org/custom-session/{sessionId}";
+        
+        // 서버에 데이터 요청
+        UnityWebRequest request = UnityWebRequest.Get(url);
+        // 응답 기다림
+        yield return request.SendWebRequest();
+        // 성공했는지 확인
+        if (request.result == UnityWebRequest.Result.Success)
         {
-            "privateSofa_a", "privateSofa_b",
-            "classicSofa_a", "classicSofa_b",
-            "modularSofa_a", "modularSofa_b",
-            "roungeSofa_a", "roungeSofa_b"
-        };
+            // Json 데이터를 파싱한다.
+            string response = request.downloadHandler.text;
+            currentSessionData = JsonUtility.FromJson<SessionData>(response);
+            
+            // 받은 데이터로 UI를 갱신한다.
+            UpdateUI();
+            
+            Debug.Log("세션 데이터 불러오기 성공");
+        }
+        else
+        {
+            Debug.Log($"세션 데이터 로드 실패: {request.error}");
+            OpenToast("데이터를 불러오는데 실패했습니다.", 3.0f);
+        }
+    }
 
-        if (idx >= modelNames.Length)
+    // 서버에서 받은 데이터로 버튼들과 UI를 업데이트한다.
+    private void UpdateUI()
+    {
+        // 데이터가 없으면 return
+        if (currentSessionData == null)
         {
             return;
         }
 
+        // 제품명 업데이트
+        productNameField.text = currentSessionData.custom_name;
+
+        // 모델 불러오고 색상, 소재, 사이즈 설정
+        LoadModel(currentSessionData.name, currentSessionData.model_type);
+        SetColor(currentSessionData.color);
+        SetMaterial(currentSessionData.material);
+        SetSize(currentSessionData.size);
+    }
+
+    private void LoadModel(string name, string model_type)
+    {
+        // 모델 파일 이름 만들기
+        string modelName = $"{name}_{model_type}";
+
+        // 기존 모델이 있으면 삭제한다.
         if (modelGo != null)
         {
             Destroy(modelGo);
         }
-
-        modelGo = Instantiate(Resources.Load<GameObject>(modelNames[idx]));
-        model = modelGo.GetComponent<SofaModel>();
-        modelGo.name = modelNames[idx].Split('_')[0];
+        
+        // Resources에서 불러온다.
+        GameObject prefab = Resources.Load<GameObject>(modelName);
+        if (prefab != null)
+        {
+            // 프리팹을 생성한다.
+            modelGo = Instantiate(prefab);
+            model = modelGo.GetComponent<SofaModel>();
+            modelGo.name = name;
+            
+            // 현재 선택된 모델 타입 저장
+            selectedModelType = model_type;
+            // 해당 모델 타입 토글 활성화
+            SetToggleState(model_type, "modelType");
+        }
+        else
+        {
+            OpenToast("모델을 찾을 수 없습니다.", 3.0f);
+            Debug.LogError($"모델을 찾을 수 없습니다: {modelName}");
+        }
     }
 
+    // 토글 트리거시 실행될 함수 연결
     private void RegisterToggle(Toggle toggle, Action onSelect)
     {
         toggle.onValueChanged.AddListener((isOn) =>
@@ -142,6 +312,7 @@ public class CustomizerUI : MonoBehaviour
         });
     }
     
+    // 색상 적용
     private void SetColor(string colorName)
     {
         switch (colorName)
@@ -158,6 +329,7 @@ public class CustomizerUI : MonoBehaviour
         }
     }
 
+    // 실제 모델에 적용
     private void SetColor(string colorName, Color color)
     {
         selectedColor = colorName;
@@ -177,12 +349,14 @@ public class CustomizerUI : MonoBehaviour
         }
     }
 
+    // 소재 적용
     private void SetMaterial(string materialName)
     {
         float value = materialName.Equals("leather") ? 1.0f : 0.0f;
         SetMaterial(materialName, value);
     }
 
+    // 실제 모델에 적용
     private void SetMaterial(string materialName, float value)
     {
         selectedMaterial = materialName;
@@ -202,12 +376,14 @@ public class CustomizerUI : MonoBehaviour
         }
     }
 
+    // 사이즈 적용
     private void SetSize(string sizeName)
     {
         float size = sizeName.Equals("large") ? 1.2f : 1.0f;
         SetSize(sizeName, size);
     }
 
+    // 실제 모델에 적용
     private void SetSize(string sizeName, float size)
     {
         selectedSize = sizeName;
@@ -219,24 +395,31 @@ public class CustomizerUI : MonoBehaviour
         }
     }
 
+    // 모델 타입을 바꾼다.
     private void SwitchModel(string modelType)
     {
+        // 현재 선택된 모델 타입으로 저장
         selectedModelType = modelType;
+        // 해당 모델 타입 토글 선택 활성화
         SetToggleState(modelType, "modelType");
         
+        // 현재 보여지는 모델 없을 경우 return
         if (modelGo == null)
         {
             return;
         }
         
+        // 모델 교체
         string newModelName = modelGo.name;
         ReplaceModel(Resources.Load<GameObject>($"{newModelName}_{modelType}"), newModelName);
 
+        // 교체한 모델에 색상, 소재, 사이즈 적용
         SetColor(selectedColor);
         SetMaterial(selectedMaterial);
         SetSize(selectedSize);
     }
 
+    // 모델 교체
     private void ReplaceModel(GameObject prefab, string newModelName)
     {
         if (modelGo != null)
@@ -249,6 +432,7 @@ public class CustomizerUI : MonoBehaviour
         modelGo.name = newModelName;
     }
     
+    // 토글들의 상태를 설정
     private void SetToggleState(string name, string category)
     {
         switch (category)
@@ -273,17 +457,11 @@ public class CustomizerUI : MonoBehaviour
         }
     }
 
+    // 저장 버튼
     public void SaveData()
     {
-        string name = productNameField.text;
+        string selectedCustomName = productNameField.text;
         
-        Debug.Log("[저장 완료]");
-        Debug.Log($"제품명: {name}");
-        Debug.Log($"색상: {selectedColor}");
-        Debug.Log($"소재: {selectedMaterial}");
-        Debug.Log($"사이즈: {selectedSize}");
-        Debug.Log($"모델: {selectedModelType}");
-
         if (string.IsNullOrEmpty(name))
         {
             OpenToast("제품명을 입력해주세요.", 3.0f);
@@ -296,19 +474,57 @@ public class CustomizerUI : MonoBehaviour
             return;
         }
         
-        data = new CustomData
+        // 현재 모델의 이름
+        string selectedName = modelGo != null ? modelGo.name : "";
+        
+        var saveData = new 
         {
-            name = name,
+            user_id = currentSessionData?.user?.id ?? "",
+            product_id = currentSessionData?.product?.id ?? "",
+            name = selectedName,
+            custom_name = selectedCustomName,
             color = selectedColor,
             material = selectedMaterial,
             size = selectedSize,
-            model = selectedModelType
+            model_type = selectedModelType
         };
 
-        Debug.Log($"Save Success {JsonUtility.ToJson(data)}");
-        StartCoroutine(Post(""));
+        StartCoroutine(PostSaveData(saveData));
     }
 
+    private IEnumerator PostSaveData(object saveData)
+    {
+        string url = "https://api.my-sofa.org/custom-session";
+        string data = JsonUtility.ToJson(saveData);
+
+        // 요청
+        UnityWebRequest request = new UnityWebRequest(url, "POST");
+        request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(data));
+        request.downloadHandler = new DownloadHandlerBuffer();
+        request.SetRequestHeader("Content-Type", "application/json");
+        
+        // 서버 응답 기다림
+        yield return request.SendWebRequest();
+        
+        // 성공 확인
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            Debug.Log("저장 완료");
+            OpenToast("저장되었습니다.", 3.0f);
+        }
+        else
+        {
+            Debug.LogError($"저장 실패: {request.error}");
+            OpenToast("저장에 실패했습니다.", 3.0f);
+        }
+    }
+
+    // 돌아가기 버튼
+    public void GoBack()
+    {
+        Application.OpenURL("https://my-sofa.org");
+    }
+    
     private void OpenToast(string message, float time)
     {
         toast.SetActive(true);
@@ -321,37 +537,50 @@ public class CustomizerUI : MonoBehaviour
     {
         toast.SetActive(false);
     }
-
-    private IEnumerator Get(string url)
+    
+    // 매 프레임마다 실행되는 함수 (주로 키보드 입력 확인용)
+    private void Update()
     {
-        UnityWebRequest request = UnityWebRequest.Get(url);
-        yield return request.SendWebRequest();
-
-        if (request.error != null)
+#if UNITY_EDITOR
+        // 에디터에서만 실행되는 테스트 코드
+        // 숫자 키 0~7을 누르면 다른 모델들 테스트해볼 수 있음
+        for (int i = 0; i <= 7; i++)
         {
-            Debug.Log(request.error);
+            if (Input.GetKeyDown(KeyCode.Alpha0 + i))
+            {
+                LoadTest(i);  // 해당 번호의 테스트 모델 불러오기
+            }
         }
-        else
-        {
-            Debug.Log(request.downloadHandler.text);
-        }
+#endif
     }
 
-    private IEnumerator Post(string url)
+    // 테스트용 모델을 불러오는 함수 (에디터에서만 사용)
+    private void LoadTest(int idx)
     {
-        UnityWebRequest request = UnityWebRequest.PostWwwForm(url, "POST");
-        request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(JsonUtility.ToJson(data)));
-        request.SetRequestHeader("Content-Type", "application/json");
-        
-        yield return request.SendWebRequest();
-        
-        if (request.error != null)
+        // 테스트할 수 있는 모델들의 이름 목록
+        string[] modelNames =
         {
-            Debug.Log(request.error);
-        }
-        else
+            "privateSofa_a", "privateSofa_b",    // 0, 1번 키
+            "classicSofa_a", "classicSofa_b",    // 2, 3번 키
+            "modularSofa_a", "modularSofa_b",    // 4, 5번 키
+            "roungeSofa_a", "roungeSofa_b"       // 6, 7번 키
+        };
+
+        // 번호가 범위를 벗어나면 아무것도 하지 않기
+        if (idx >= modelNames.Length)
         {
-            Debug.Log(request.downloadHandler.text);
+            return;
         }
+
+        // 기존 모델이 있으면 삭제하기
+        if (modelGo != null)
+        {
+            Destroy(modelGo);
+        }
+
+        // 새로운 테스트 모델 불러와서 화면에 보여주기
+        modelGo = Instantiate(Resources.Load<GameObject>(modelNames[idx]));
+        model = modelGo.GetComponent<SofaModel>();
+        modelGo.name = modelNames[idx].Split('_')[0];  // "_" 앞부분만 이름으로 사용
     }
 }
