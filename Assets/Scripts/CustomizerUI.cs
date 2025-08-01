@@ -126,6 +126,8 @@ public class CustomizerUI : MonoBehaviour
     private string selectedModelType = "";
     // URL 쿼리에서 추출한 세션 ID
     private string sessionId = "";
+    // URL 쿼리에서 추출한 마이 아이템 ID
+    private string myItemId = "";
 
     // 서버에서 받아온 세션 데이터
     private SessionData currentSessionData;
@@ -140,6 +142,8 @@ public class CustomizerUI : MonoBehaviour
     private readonly Color beigeColor = new(0.96f, 0.86f, 0.71f);
     private readonly Color grayColor = new(0.5f, 0.5f, 0.5f);
     private readonly Color blackColor = new(0.2f, 0.2f, 0.2f);
+
+    private bool isEditMode;
     
     private void Start()
     {
@@ -177,10 +181,18 @@ public class CustomizerUI : MonoBehaviour
             {
                 // = 기준으로 나누어서 키와 값을 분리한다.
                 string[] values = parts[1].Split("=");
-                if (values[0] == "sessionId" && values.Length == 2)
+                if (values[0] == "sessionId")
                 {
                     sessionId = values[1];
-                    Debug.Log($"sessionId: {sessionId}");
+
+                    if (values[1].Contains("&"))
+                    {
+                        string[] subValues = values[1].Split("&");
+                        sessionId = subValues[0];
+                        myItemId = values[2];
+                        saveButton.GetComponentInChildren<TMP_Text>().text = "수정하기";
+                        isEditMode = true;
+                    }
                 }
             }
         }
@@ -488,7 +500,14 @@ public class CustomizerUI : MonoBehaviour
         
         string jsonData = JsonUtility.ToJson(saveData);
 
-        StartCoroutine(PostSaveData(jsonData));
+        if (isEditMode)
+        {
+            StartCoroutine(PostUpdateData(jsonData));
+        }
+        else
+        {
+            StartCoroutine(PostSaveData(jsonData));
+        }
     }
 
     private IEnumerator PostSaveData(string jsonData)
@@ -522,6 +541,64 @@ public class CustomizerUI : MonoBehaviour
             Debug.Log("저장 완료");
             // 성공 메시지 보여주기
             OpenToast("저장되었습니다.", 3.0f);
+            saveButton.GetComponentInChildren<TMP_Text>().text = "수정하기";
+            isEditMode = true;
+        }
+        else
+        {
+            Debug.LogError($"저장 실패 - 코드: {request.responseCode}, 에러: {request.error}");
+            
+            // 구체적인 에러 메시지 표시
+            if (request.responseCode == 400)
+            {
+                OpenToast("잘못된 데이터입니다. 모든 항목을 선택해주세요.", 3.0f);
+            }
+            else if (request.responseCode == 500)
+            {
+                OpenToast("서버 오류입니다. 잠시 후 다시 시도해주세요.", 3.0f);
+            }
+            else
+            {
+                // 기본 실패 메시지
+                OpenToast("저장에 실패했습니다.", 3.0f);
+            }
+        }
+        
+        // 메모리 정리
+        request.Dispose();
+    }
+
+    private IEnumerator PostUpdateData(string jsonData)
+    {
+        string url = $"https://api.my-sofa.org/myitems/{myItemId}";
+        
+        Debug.Log($"요청 URL: {url}");
+        
+        // PATCH 방식으로 서버에 데이터 보내기 준비
+        UnityWebRequest request = new UnityWebRequest(url, "PATCH");
+        
+        // JSON 데이터를 바이트 배열로 변환해서 업로드 핸들러에 설정
+        byte[] jsonBytes = Encoding.UTF8.GetBytes(jsonData);
+        request.uploadHandler = new UploadHandlerRaw(jsonBytes);
+        request.downloadHandler = new DownloadHandlerBuffer();
+        
+        // 헤더 설정
+        request.SetRequestHeader("Content-Type", "application/json");
+        request.SetRequestHeader("Accept", "application/json");
+        
+        // 서버 응답을 기다리기
+        yield return request.SendWebRequest();
+        
+        // 결과 확인
+        Debug.Log($"응답 코드: {request.responseCode}");
+        Debug.Log($"응답 내용: {request.downloadHandler.text}");
+        
+        // 서버에 성공적으로 수정되었는지 확인
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            Debug.Log("수정 완료");
+            // 성공 메시지 보여주기
+            OpenToast("수정되었습니다.", 3.0f);
         }
         else
         {
