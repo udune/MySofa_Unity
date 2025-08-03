@@ -69,6 +69,7 @@ public class ProductData
     public string id;
 }
 
+// 저장 요청 데이터
 [Serializable]
 public class SaveRequest
 {
@@ -80,6 +81,13 @@ public class SaveRequest
     public string material;
     public string size;
     public string model_type;
+}
+
+// 저장 응답 데이터
+[Serializable]
+public class SaveResponse
+{
+    public string id;
 }
 
 public class CustomizerUI : MonoBehaviour
@@ -256,6 +264,8 @@ public class CustomizerUI : MonoBehaviour
             Debug.Log($"세션 데이터 로드 실패: {request.error}");
             OpenToast("데이터를 불러오는데 실패했습니다.", 3.0f);
         }
+        
+        request.Dispose();
     }
 
     // 서버에서 받은 데이터로 버튼들과 UI를 업데이트한다.
@@ -540,6 +550,8 @@ public class CustomizerUI : MonoBehaviour
         {
             Debug.Log("저장 완료");
             // 성공 메시지 보여주기
+            SaveResponse response = JsonUtility.FromJson<SaveResponse>(request.downloadHandler.text);
+            myItemId = response.id;  // 새로 생성된 아이템 ID 저장
             OpenToast("저장되었습니다.", 3.0f);
             saveButton.GetComponentInChildren<TMP_Text>().text = "수정하기";
             isEditMode = true;
